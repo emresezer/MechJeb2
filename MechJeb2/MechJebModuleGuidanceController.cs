@@ -223,21 +223,30 @@ namespace MuMech
                 sma = PeR;
 
             v0m = Math.Sqrt( mainBody.gravParameter * ( 2 / PeR - 1 / sma ) );
+        }
 
-            /* Debug.Log("mainBody.gravParameter = " + mainBody.gravParameter);
-            Debug.Log("mainBody.Radius = " + mainBody.Radius);
-            Debug.Log("PeA = " + PeA);
-            Debug.Log("ApA = " + ApA);
-            Debug.Log("PeR = " + PeR);
-            Debug.Log("ApR = " + ApR);
-            Debug.Log("SMA = " + sma);
-            Debug.Log("v0m = " + v0m);
-            Debug.Log("r0m = " + r0m); */
+        // convert PeA/ApA values to SMA+ECC
+        private void ConvertToSMAEcc(double PeA, double ApA, out double sma, out double ecc)
+        {
+            double PeR = mainBody.Radius + PeA;
+            double ApR = mainBody.Radius + ApA;
+
+            /* remap nonsense ApAs onto circular orbits */
+            if ( ApA >= 0 && ApA < PeA )
+                ApR = PeR;
+
+            sma = (PeR + ApR) / 2;
+
+            ecc = (ApR - PeR) / (ApR + PeR);
         }
 
         double old_v0m;
         double old_r0m;
+        double old_PeA;
+        double old_ApA;
         double old_inc;
+        double old_LAN;
+        double old_ArgP;
 
         public void TargetPeInsertMatchOrbitPlane(double PeA, double ApA, Orbit o, bool omitCoast)
         {
@@ -290,18 +299,12 @@ namespace MuMech
             ConvertToRadVel(PeA, ApA, out r0m, out v0m, out sma);
 
             if (r0m != old_r0m || v0m != old_v0m || inc != old_inc)
-            {
-                //Debug.Log("old settings changed");
                 doupdate = true;
-            }
 
             if (p == null || doupdate)
             {
                 if (p != null)
-                {
-                    //Debug.Log("killing a thread if its there to kill");
                     p.KillThread();
-                }
 
                 //Debug.Log("mainbody.Radius = " + mainBody.Radius);
                 //Debug.Log("mainbody.gravParameter = " + mainBody.gravParameter);
@@ -319,6 +322,155 @@ namespace MuMech
             old_v0m = v0m;
             old_r0m = r0m;
             old_inc = inc;
+        }
+
+        // guess at delta v based on specific orbital energy
+        // https://en.wikipedia.org/wiki/Specific_orbital_energy
+        //
+        private double approximateDeltaV(double sma)
+        {
+            double addE = mainBody.gravParameter * ( 2 * sma - mainBody.Radius ) / ( 2 * sma * mainBody.Radius );  // in kJ/t or m^2/s^2
+            return Math.Sqrt( 2 * addE ) + 2000; // E = v^2 / 2 solved for v with 2000 thrown in for grav losses and drag
+        }
+
+        private PontryaginLaunch NewPontryaginForLaunch(double inc, double sma)
+        {
+            lambdaDot = Vector3d.zero;
+            double desiredHeading = OrbitalManeuverCalculator.HeadingForInclination(inc, vesselState.latitude);
+            Vector3d desiredHeadingVector = Math.Sin(desiredHeading * UtilMath.Deg2Rad) * vesselState.east + Math.Cos(desiredHeading * UtilMath.Deg2Rad) * vesselState.north;
+            Vector3d desiredThrustVector = Math.Cos(45 * UtilMath.Deg2Rad) * desiredHeadingVector + Math.Sin(45 * UtilMath.Deg2Rad) * vesselState.up;  /* 45 pitch guess */
+            lambda = desiredThrustVector;
+            Debug.Log("sma = " + sma);
+            Debug.Log("deltaV guess = " + approximateDeltaV(sma));
+            return new PontryaginLaunch(core: core, mu: mainBody.gravParameter, r0: vesselState.orbitalPosition, v0: vesselState.orbitalVelocity, pv0: lambda.normalized, pr0: Vector3d.zero, dV: approximateDeltaV(sma));
+        }
+
+        public void target3constraint(double PeA, double ApA, double inc, bool omitCoast)
+        {
+            if ( status == PVGStatus.ENABLED )
+                return;
+
+            bool doupdate = false;
+
+            double sma, ecc;
+
+            ConvertToSMAEcc(PeA, ApA, out sma, out ecc);
+
+            if (PeA != old_PeA || ApA != old_ApA || inc != old_inc)
+                doupdate = true;
+
+            if (p == null || doupdate)
+            {
+                if (p != null)
+                    p.KillThread();
+
+                Debug.Log("[MechJeb] MechJebModuleGuidanceController: setting up target3constraint");
+                PontryaginLaunch solver = NewPontryaginForLaunch(inc, sma);
+                solver.omitCoast = omitCoast;
+                solver.target3constraint(sma, ecc, inc * UtilMath.Deg2Rad);
+                p = solver;
+            }
+
+            old_PeA = PeA;
+            old_ApA = ApA;
+            old_inc = inc;
+        }
+
+        public void target4constraintArgPfree(double PeA, double ApA, double inc, double LAN, bool omitCoast)
+        {
+            if ( status == PVGStatus.ENABLED )
+                return;
+
+            bool doupdate = false;
+
+            double sma, ecc;
+
+            ConvertToSMAEcc(PeA, ApA, out sma, out ecc);
+
+            if (PeA != old_PeA || ApA != old_ApA || inc != old_inc || LAN != old_LAN)
+                doupdate = true;
+
+            if (p == null || doupdate)
+            {
+                if (p != null)
+                    p.KillThread();
+
+                Debug.Log("[MechJeb] MechJebModuleGuidanceController: setting up target4constraintArgPfree");
+                PontryaginLaunch solver = NewPontryaginForLaunch(inc, sma);
+                solver.omitCoast = omitCoast;
+                solver.target4constraintArgPfree(sma, ecc, inc * UtilMath.Deg2Rad, LAN * UtilMath.Deg2Rad);
+                p = solver;
+            }
+
+            old_PeA = PeA;
+            old_ApA = ApA;
+            old_inc = inc;
+            old_LAN = LAN;
+        }
+
+        public void target4constraintLANfree(double PeA, double ApA, double inc, double ArgP, bool omitCoast)
+        {
+            if ( status == PVGStatus.ENABLED )
+                return;
+
+            bool doupdate = false;
+
+            double sma, ecc;
+
+            ConvertToSMAEcc(PeA, ApA, out sma, out ecc);
+
+            if (PeA != old_PeA || ApA != old_ApA || inc != old_inc || ArgP != old_ArgP)
+                doupdate = true;
+
+            if (p == null || doupdate)
+            {
+                if (p != null)
+                    p.KillThread();
+
+                Debug.Log("[MechJeb] MechJebModuleGuidanceController: setting up target4constraintLANfree");
+                PontryaginLaunch solver = NewPontryaginForLaunch(inc, sma);
+                solver.omitCoast = omitCoast;
+                solver.target4constraintLANfree(sma, ecc, inc * UtilMath.Deg2Rad, ArgP * UtilMath.Deg2Rad);
+                p = solver;
+            }
+
+            old_PeA = PeA;
+            old_ApA = ApA;
+            old_inc = inc;
+            old_ArgP = ArgP;
+        }
+
+        public void target5constraint(double PeA, double ApA, double inc, double LAN, double ArgP, bool omitCoast)
+        {
+            if ( status == PVGStatus.ENABLED )
+                return;
+
+            bool doupdate = false;
+
+            double sma, ecc;
+
+            ConvertToSMAEcc(PeA, ApA, out sma, out ecc);
+
+            if (PeA != old_PeA || ApA != old_ApA || inc != old_inc || LAN != old_LAN || ArgP != old_ArgP)
+                doupdate = true;
+
+            if (p == null || doupdate)
+            {
+                if (p != null)
+                    p.KillThread();
+
+                Debug.Log("[MechJeb] MechJebModuleGuidanceController: setting up target5constraint");
+                PontryaginLaunch solver = NewPontryaginForLaunch(inc, sma);
+                solver.omitCoast = omitCoast;
+                solver.target5constraint(sma, ecc, inc * UtilMath.Deg2Rad, LAN * UtilMath.Deg2Rad, ArgP * UtilMath.Deg2Rad);
+                p = solver;
+            }
+
+            old_PeA = PeA;
+            old_ApA = ApA;
+            old_inc = inc;
+            old_LAN = LAN;
+            old_ArgP = ArgP;
         }
 
         /* meta state for consumers that means "is iF usable?" (or pitch/heading) */

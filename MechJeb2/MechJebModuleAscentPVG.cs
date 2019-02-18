@@ -18,8 +18,6 @@ namespace MuMech
         [Persistent(pass = (int)(Pass.Type | Pass.Global))]
         public EditableDouble pitchRate = new EditableDouble(0.50);
         [Persistent(pass = (int)(Pass.Type | Pass.Global))]
-        public EditableDoubleMult desiredApoapsis = new EditableDoubleMult(0, 1000);
-        [Persistent(pass = (int)(Pass.Type | Pass.Global))]
         public bool omitCoast = false;
 
         private MechJebModuleAscentGuidance ascentGuidance { get { return core.GetComputerModule<MechJebModuleAscentGuidance>(); } }
@@ -70,14 +68,61 @@ namespace MuMech
 
         private void setTarget()
         {
-            if ( ascentGuidance.launchingToPlane && core.target.NormalTargetExists )
+            double periapsis = autopilot.desiredPeriapsis;
+            double apoapsis = autopilot.desiredApoapsis;
+
+            if ( autopilot.desiredShapeMode == 1 && core.target.NormalTargetExists )
             {
-                core.guidance.TargetPeInsertMatchOrbitPlane(autopilot.desiredOrbitAltitude, desiredApoapsis, core.target.TargetOrbit, omitCoast);
-                //autopilot.desiredInclination = Math.Acos(-Vector3d.Dot(-Planetarium.up, core.guidance.iy)) * UtilMath.Rad2Deg;
+                periapsis = core.target.TargetOrbit.PeA;
+                apoapsis = core.target.TargetOrbit.ApA;
+            }
+
+            double inclination = autopilot.desiredInclination;
+
+            if ( autopilot.desiredIncMode == 1 && core.target.NormalTargetExists )
+                inclination = core.target.TargetOrbit.inclination;
+
+            if ( autopilot.desiredIncMode == 2 )
+                inclination = vessel.orbit.inclination;
+
+            double LAN = autopilot.desiredLAN;
+
+            if ( autopilot.desiredLANMode == 1 && core.target.NormalTargetExists )
+                LAN = core.target.TargetOrbit.LAN;
+
+            double ArgP = autopilot.desiredArgP;
+
+            if ( autopilot.desiredArgPMode == 1 && core.target.NormalTargetExists )
+                ArgP = core.target.TargetOrbit.argumentOfPeriapsis;
+
+            if ( autopilot.desiredLANMode == 2 ) // free
+            {
+                if ( autopilot.desiredArgPMode == 2 ) // free
+                {
+                    // 3 constraint -- LAN, ArgP, TA free
+                    core.guidance.target3constraint(periapsis, apoapsis, inclination, omitCoast);
+                    // FIXME: push LAN + ArgP into autopilot
+                }
+                else
+                {
+                    // 4 constraint -- LAN, TA free
+                    core.guidance.target4constraintLANfree(periapsis, apoapsis, inclination, ArgP, omitCoast);
+                    // FIXME: push LAN into autopilot
+                }
             }
             else
             {
-                core.guidance.TargetPeInsertMatchInc(autopilot.desiredOrbitAltitude, desiredApoapsis, autopilot.desiredInclination, omitCoast);
+                if ( autopilot.desiredArgPMode == 2 ) // free
+                {
+                    // 4 constraint -- ArgP, TA free
+                    core.guidance.target4constraintArgPfree(periapsis, apoapsis, inclination, LAN, omitCoast);
+                    // FIXME: push ArgP into autopilot
+                }
+                else
+                {
+                    // 5 constraint -- TA free
+                    core.guidance.target5constraint(periapsis, apoapsis, inclination, LAN, ArgP, omitCoast);
+                }
             }
         }
 

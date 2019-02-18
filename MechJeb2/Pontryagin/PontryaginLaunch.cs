@@ -13,9 +13,12 @@ namespace MuMech {
 
         double rTm;
         double vTm;
-        double gamma;
-        double inc;
+        double gammaT;
+        double incT;
         double smaT;
+        double eccT;
+        double LANT;
+        double ArgPT;
         Vector3d hT;
 
         // 5-constraint PEG with fixed LAN
@@ -24,7 +27,7 @@ namespace MuMech {
             QuaternionD rot = Quaternion.Inverse(Planetarium.fetch.rotation);
             this.rTm = rTm / r_scale;
             this.vTm = vTm / v_scale;
-            this.gamma = gamma;
+            this.gammaT = gamma;
             this.hT = rot * hT / r_scale / v_scale;
             bcfun = flightangle5constraint;
         }
@@ -43,7 +46,7 @@ namespace MuMech {
             if (!terminal)
             {
                 z[0] = ( rf.magnitude * rf.magnitude - rTm * rTm ) / 2.0;
-                z[1] = Vector3d.Dot(rf, vf) - rf.magnitude * vf.magnitude * Math.Sin(gamma);
+                z[1] = Vector3d.Dot(rf, vf) - rf.magnitude * vf.magnitude * Math.Sin(gammaT);
                 z[2] = hmiss[0];
                 z[3] = hmiss[1];
                 z[4] = hmiss[2];
@@ -66,8 +69,8 @@ namespace MuMech {
             this.vTm = vTm / v_scale;
             //Debug.Log("4constraint vTm = " + vTm + " v_scale = " + v_scale + " vTm_bar = " + this.vTm );
             //Debug.Log("4constraint rTm = " + rTm + " r_scale = " + r_scale + " rTm_bar = " + this.rTm );
-            this.gamma = gamma;
-            this.inc = inc;
+            this.gammaT = gamma;
+            this.incT = inc;
             bcfun = flightangle4constraint;
         }
 
@@ -87,17 +90,196 @@ namespace MuMech {
             {
                 z[0] = ( rf.magnitude * rf.magnitude - rTm * rTm ) / 2.0;
                 z[1] = ( vf.magnitude * vf.magnitude - vTm * vTm ) / 2.0;
-                z[2] = Vector3d.Dot(n, hf) - hf.magnitude * Math.Cos(inc);
-                z[3] = Vector3d.Dot(rf, vf) - rf.magnitude * vf.magnitude * Math.Sin(gamma);
-                z[4] = rTm * rTm * ( Vector3d.Dot(vf, prf) - vTm * Math.Sin(gamma) / rTm * Vector3d.Dot(rf, prf) ) -
-                    vTm * vTm * ( Vector3d.Dot(rf, pvf) - rTm * Math.Sin(gamma) / vTm * Vector3d.Dot(vf, pvf) );
+                z[2] = Vector3d.Dot(n, hf) - hf.magnitude * Math.Cos(incT);
+                z[3] = Vector3d.Dot(rf, vf) - rf.magnitude * vf.magnitude * Math.Sin(gammaT);
+                z[4] = rTm * rTm * ( Vector3d.Dot(vf, prf) - vTm * Math.Sin(gammaT) / rTm * Vector3d.Dot(rf, prf) ) -
+                    vTm * vTm * ( Vector3d.Dot(rf, pvf) - rTm * Math.Sin(gammaT) / vTm * Vector3d.Dot(vf, pvf) );
                 z[5] = Vector3d.Dot(hf, prf) * Vector3d.Dot(hf, rn) + Vector3d.Dot(hf, pvf) * Vector3d.Dot(hf, vn);
             }
             else
             {
-                double hTm = rTm * vTm * Math.Cos(gamma);
+                double hTm = rTm * vTm * Math.Cos(gammaT);
 
                 z[0] = hf.magnitude - hTm;
+                z[1] = z[2] = z[3] = z[4] = z[5] = 0.0;
+            }
+        }
+
+        public void target3constraint(double sma, double ecc, double inc)
+        {
+            this.smaT = sma / r_scale;
+            this.eccT = ecc;
+            this.incT = inc;
+            bcfun = target3constraint;
+        }
+
+        // has a singularity for e == 0 which is only fixable by going to flightangle4constraint
+        // FIXME: singularity for i == 0, rot coordinates?
+        private void target3constraint(double[] yT, double[] z, bool terminal)
+        {
+            Vector3d rf = new Vector3d(yT[0], yT[1], yT[2]);
+            Vector3d vf = new Vector3d(yT[3], yT[4], yT[5]);
+            Vector3d pvf = new Vector3d(yT[6], yT[7], yT[8]);
+            Vector3d prf = new Vector3d(yT[9], yT[10], yT[11]);
+
+            Vector3d hf = Vector3d.Cross(rf, vf);
+            Vector3d n = new Vector3d(0, -1, 0);  /* angular momentum vectors point south in KSP and we're in xzy coords */
+
+            double hTm = Math.Sqrt( smaT * ( 1 - eccT * eccT ) );
+
+            double smaf = 1.0 / ( 2.0 / rf.magnitude - vf.sqrMagnitude );
+            double eccf = Math.Sqrt(1.0 - hf.sqrMagnitude / smaf);
+
+            if (!terminal)
+            {
+                z[0] = smaT * ( 1 - eccT ) - ( smaf * ( 1 - eccf ) ); // PeA constraint
+                z[1] = vf.sqrMagnitude / 2.0 - 1.0 / rf.magnitude + 1.0 / ( 2.0 * smaT ); // E constraint
+                z[2] = Vector3d.Dot(n, hf.normalized) - Math.Cos(incT); // inc constraint
+                // transversality
+                z[3] = Vector3d.Dot(Vector3d.Cross(prf, rf) + Vector3d.Cross(pvf, vf), hf);
+                z[4] = Vector3d.Dot(Vector3d.Cross(prf, rf) + Vector3d.Cross(pvf, vf), n);
+                z[5] = Vector3d.Dot(prf, vf) - Vector3d.Dot(pvf, rf) / ( rf.magnitude * rf.magnitude * rf.magnitude );
+            }
+            else
+            {
+                z[0] = hf.magnitude - hTm;
+                z[1] = z[2] = z[3] = z[4] = z[5] = 0.0;
+            }
+        }
+
+        public void target4constraintArgPfree(double sma, double ecc, double inc, double LAN)
+        {
+            this.smaT = sma / r_scale;
+            this.eccT = ecc;
+            this.incT = inc;
+            this.LANT = LAN;
+            bcfun = target4constraintArgPfree;
+        }
+
+        private void target4constraintArgPfree(double[] yT, double[] z, bool terminal)
+        {
+            Vector3d rf = new Vector3d(yT[0], yT[1], yT[2]);
+            Vector3d vf = new Vector3d(yT[3], yT[4], yT[5]);
+            Vector3d pvf = new Vector3d(yT[6], yT[7], yT[8]);
+            Vector3d prf = new Vector3d(yT[9], yT[10], yT[11]);
+
+            Vector3d hf = Vector3d.Cross(rf, vf);
+            Vector3d n = new Vector3d(0, -1, 0);  /* angular momentum vectors point south in KSP and we're in xzy coords */
+
+            Vector3d hT = new Vector3d( Math.Sin(LANT) * Math.Sin(incT), -Math.Cos(LANT) * Math.Sin(incT), Math.Cos(incT) ) * Math.Sqrt(smaT * (1 - eccT*eccT));
+            hT = -hT.xzy; // left handed coordinate system
+            Vector3d hmiss = hf - hT;
+
+            double smaf = 1.0 / ( 2.0 / rf.magnitude - vf.sqrMagnitude );
+            double eccf = Math.Sqrt(1.0 - hf.sqrMagnitude / smaf);
+
+            if (!terminal)
+            {
+                z[0] = smaT * ( 1 - eccT ) - ( smaf * ( 1 - eccf ) ); // PeA constraint
+                z[2] = hmiss[0];
+                z[2] = hmiss[1];
+                z[3] = hmiss[2];
+                // transversality
+                z[4] = Vector3d.Dot(Vector3d.Cross(prf, rf) + Vector3d.Cross(pvf, vf), hf);
+                z[5] = Vector3d.Dot(prf, vf) - Vector3d.Dot(pvf, rf) / ( rf.magnitude * rf.magnitude * rf.magnitude );
+            }
+            else
+            {
+                z[0] = hmiss.magnitude;
+                z[1] = z[2] = z[3] = z[4] = z[5] = 0.0;
+            }
+        }
+
+        public void target4constraintLANfree(double sma, double ecc, double inc, double ArgP)
+        {
+            this.smaT = sma / r_scale;
+            this.eccT = ecc;
+            this.incT = inc;
+            this.ArgPT = ArgP;
+            bcfun = target4constraintLANfree;
+        }
+
+        private void target4constraintLANfree(double[] yT, double[] z, bool terminal)
+        {
+            Vector3d rf = new Vector3d(yT[0], yT[1], yT[2]);
+            Vector3d vf = new Vector3d(yT[3], yT[4], yT[5]);
+            Vector3d pvf = new Vector3d(yT[6], yT[7], yT[8]);
+            Vector3d prf = new Vector3d(yT[9], yT[10], yT[11]);
+
+            Vector3d hf = Vector3d.Cross(rf, vf);
+            Vector3d n = new Vector3d(0, -1, 0); // angular momentum vectors point south in KSP and we're in xzy coords
+
+            Vector3d eccf = Vector3d.Cross(vf, hf) - rf / rf.magnitude; // ecc vector
+            double smaf = 1.0 / ( 2.0 / rf.magnitude - vf.sqrMagnitude );
+            double hTm = Math.Sqrt( smaT * ( 1 - eccT * eccT ) );
+
+            if (!terminal)
+            {
+                z[0] = smaT * ( 1 - eccT ) - ( smaf * ( 1 - eccf.magnitude ) ); // PeA constraint
+                z[1] = vf.sqrMagnitude / 2.0 - 1.0 / rf.magnitude + 1.0 / ( 2.0 * smaT ); // E constraint
+                z[2] = Vector3d.Dot(n, hf) - hf.magnitude * Math.Cos(incT);
+                z[3] = Vector3d.Dot(eccf, Vector3d.Cross(n, hf)) / eccf.magnitude / hf.magnitude - Math.Sin(incT) * Math.Cos(ArgPT);
+                z[4] = Vector3d.Dot(Vector3d.Cross(prf, rf) + Vector3d.Cross(pvf, vf), n);
+                z[5] = Vector3d.Dot(prf, vf) - Vector3d.Dot(pvf, rf) / ( rf.magnitude * rf.magnitude * rf.magnitude );
+            }
+            else
+            {
+                z[0] = hf.magnitude - hTm;
+                z[1] = z[2] = z[3] = z[4] = z[5] = 0.0;
+            }
+        }
+
+        public void target5constraint(double sma, double ecc, double inc, double LAN, double ArgP)
+        {
+            this.smaT = sma / r_scale;
+            this.eccT = ecc;
+            this.incT = inc;
+            this.LANT = LAN;
+            this.ArgPT = ArgP;
+            bcfun = target5constraint;
+        }
+
+        private void target5constraint(double[] yT, double[] z, bool terminal)
+        {
+            Vector3d rf = new Vector3d(yT[0], yT[1], yT[2]);
+            Vector3d vf = new Vector3d(yT[3], yT[4], yT[5]);
+            Vector3d pvf = new Vector3d(yT[6], yT[7], yT[8]);
+            Vector3d prf = new Vector3d(yT[9], yT[10], yT[11]);
+
+            Vector3d hT = new Vector3d( Math.Sin(LANT) * Math.Sin(incT), -Math.Cos(LANT) * Math.Sin(incT), Math.Cos(incT) ) * Math.Sqrt(smaT * (1 - eccT*eccT));
+            hT = -hT.xzy; // left handed coordinate system
+            // FIXME: Vector3d.cross(n, hf) is the node vector pointing in LAN dir, another ArgPT rot around hT would give eT direction
+            Vector3d right = new Vector3d(1, 0, 0);
+            Vector3d eT = Quaternion.Euler((float)LANT, (float)incT, (float)ArgPT) * right * (float) eccT;
+
+            if (Math.Abs(hT[1]) <= 1e-6) // handle singularity
+            {
+                rf = rf.Reorder(231);
+                vf = vf.Reorder(231);
+                prf = prf.Reorder(231);
+                pvf = pvf.Reorder(231);
+                hT = hT.Reorder(231);
+                eT = eT.Reorder(231);
+            }
+
+            Vector3d hf = Vector3d.Cross(rf, vf);
+            Vector3d ef = - ( rf.normalized + Vector3d.Cross(hf, vf) );
+            Vector3d hmiss = hf - hT;
+            Vector3d emiss = ef - eT;
+            double trans = Vector3d.Dot(prf, vf) - Vector3d.Dot(pvf, rf) / ( rf.magnitude * rf.magnitude * rf.magnitude );
+
+            if (!terminal)
+            {
+                z[0] = hmiss[0];
+                z[1] = hmiss[1];
+                z[2] = hmiss[2];
+                z[3] = emiss[0];
+                z[4] = emiss[2];
+                z[5] = trans;
+            }
+            else
+            {
+                z[0] = hmiss.magnitude;
                 z[1] = z[2] = z[3] = z[4] = z[5] = 0.0;
             }
         }

@@ -7,7 +7,7 @@ namespace MuMech
 {
     public static class MuUtils
     {
-		public static float ResourceDensity(int type)
+        public static float ResourceDensity(int type)
         {
             return PartResourceLibrary.Instance.GetDefinition(type).density;
         }
@@ -122,6 +122,15 @@ namespace MuMech
             return Math.Min((angle1 - angle2 + 360) % 360, (angle2 - angle1 + 360) % 360);
         }
 
+        // equivalent to Unity's Vector3.SignedAngle() -- beware of lefthandedness of course
+        public static double SignedAngle(Vector3d one, Vector3d two, Vector3d normal)
+        {
+            double angle = Math.Acos(Vector3d.Dot(one.normalized, two.normalized)) * UtilMath.Rad2Deg;
+            if ( Vector3d.Dot(normal, Vector3d.Cross(one, two)) < 0 )
+                return -angle;
+            return angle;
+        }
+
         public static double IntPow(double val, int exp) {
             double result = val;
             for(int i=1;i<exp;++i)
@@ -184,12 +193,12 @@ namespace MuMech
             }
         }
 
-		public static IList<T> Swap<T>(this IList<T> list, int indexA, int indexB)
-		{
-			T tmp = list[indexA];
-			list[indexA] = list[indexB];
-			list[indexB] = tmp;
-			return list;
+        public static IList<T> Swap<T>(this IList<T> list, int indexA, int indexB)
+        {
+            T tmp = list[indexA];
+            list[indexA] = list[indexB];
+            list[indexB] = tmp;
+            return list;
         }
 
         public static void DrawLine(Texture2D tex, int x1, int y1, int x2, int y2, Color col)
@@ -533,17 +542,17 @@ namespace MuMech
         }
 
         public Matrix3x3f transpose()
-		{
-			Matrix3x3f ret = new Matrix3x3f();
-			for (int i = 0; i < 3; i++)
-			{
-				for (int j = 0; j < 3; j++)
-				{
-					ret.e[i, j] = e[j, i];
-				}
-			}
-			return ret;
-		}
+        {
+            Matrix3x3f ret = new Matrix3x3f();
+            for (int i = 0; i < 3; i++)
+            {
+                for (int j = 0; j < 3; j++)
+                {
+                    ret.e[i, j] = e[j, i];
+                }
+            }
+            return ret;
+        }
 
         public static Vector3d operator *(Matrix3x3f M, Vector3 v)
         {

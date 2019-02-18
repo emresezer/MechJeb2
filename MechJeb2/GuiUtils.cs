@@ -344,6 +344,20 @@ namespace MuMech
             }
         }
 
+        // this is for disabling a SimpleTextBox and displaying a value where it is not intended that the user should be able to edit it.
+        // this is deliberately not editable and the text string is not an out parameter.
+        // TODO: make the textfield have a faded style to indicate it is not editable, and disable editing.
+        public static void SimpleTextBox(string leftLabel, string text, string rightLabel = "", float width = 100, GUIStyle rightLabelStyle=null)
+        {
+            if (rightLabelStyle == null)
+                rightLabelStyle = GUI.skin.label;
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(leftLabel, rightLabelStyle, GUILayout.ExpandWidth(true));
+            GUILayout.TextField(text, GUILayout.ExpandWidth(true), GUILayout.Width(width));
+            GUILayout.Label(rightLabel, GUILayout.ExpandWidth(false));
+            GUILayout.EndHorizontal();
+        }
+
         public static void SimpleTextBox(string leftLabel, IEditable ed, string rightLabel = "", float width = 100, GUIStyle rightLabelStyle=null)
         {
             if (rightLabelStyle == null)

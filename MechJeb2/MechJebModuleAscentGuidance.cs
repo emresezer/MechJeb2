@@ -72,7 +72,6 @@ namespace MuMech
                 btNormal.normal.textColor = btNormal.focused.textColor = Color.white;
                 btNormal.hover.textColor = btNormal.active.textColor = Color.yellow;
                 btNormal.onNormal.textColor = btNormal.onFocused.textColor = btNormal.onHover.textColor = btNormal.onActive.textColor = Color.green;
-                btNormal.padding = new RectOffset(8, 8, 8, 8);
 
                 btActive = new GUIStyle(btNormal);
                 btActive.active = btActive.onActive;
@@ -142,42 +141,119 @@ namespace MuMech
                 {
                     if (ascentPathIdx == ascentType.PVG)
                     {
+                        string[] modeStrings = { "MAN", "TGT", "FRE" };
+                        int oldDesiredShapeMode = autopilot.desiredShapeMode;
+                        int oldDesiredIncMode = autopilot.desiredIncMode;
+                        int oldDesiredLANMode = autopilot.desiredLANMode;
+                        int oldDesiredArgPMode = autopilot.desiredArgPMode;
 
-                        GuiUtils.SimpleTextBox("Target Periapsis", autopilot.desiredOrbitAltitude, "km");
-                        GuiUtils.SimpleTextBox("Target Apoapsis:", pvgascent.desiredApoapsis, "km");
-                        if ( pvgascent.desiredApoapsis >= 0 && pvgascent.desiredApoapsis < autopilot.desiredOrbitAltitude )
+                        GUILayout.BeginHorizontal();
+                        if ( core.target.NormalTargetExists && autopilot.desiredShapeMode == 1 ) // target
+                            GuiUtils.SimpleTextBox("PeA:", ( core.target.TargetOrbit.PeA / 1000.0 ).ToString(), "km");
+                        else // manual
+                            GuiUtils.SimpleTextBox("PeA:", autopilot.desiredPeriapsis, "km");
+                        autopilot.desiredShapeMode = GUILayout.SelectionGrid(autopilot.desiredShapeMode, modeStrings, 3, btNormal);
+                        GUILayout.EndHorizontal();
+
+                        GUILayout.BeginHorizontal();
+                        if ( core.target.NormalTargetExists && autopilot.desiredShapeMode == 1 ) // target
+                            GuiUtils.SimpleTextBox("ApA:", ( core.target.TargetOrbit.ApA / 1000.0 ).ToString(), "km");
+                        else // manual
+                            GuiUtils.SimpleTextBox("ApA:", autopilot.desiredApoapsis, "km");
+                        autopilot.desiredShapeMode = GUILayout.SelectionGrid(autopilot.desiredShapeMode, modeStrings, 3, btNormal);
+                        GUILayout.EndHorizontal();
+
+                        GUILayout.BeginHorizontal();
+                        if ( core.target.NormalTargetExists && autopilot.desiredIncMode == 1 ) // target
+                            GuiUtils.SimpleTextBox("Inc:", core.target.TargetOrbit.inclination.ToString(), "º");
+                        else if ( autopilot.desiredIncMode == 2 ) // "free" is always just "current"
+                            GuiUtils.SimpleTextBox("Inc:", vessel.orbit.inclination.ToString(), "º");
+                        else // manual
+                            GuiUtils.SimpleTextBox("Inc:", autopilot.desiredInclination, "º");
+                        autopilot.desiredIncMode = GUILayout.SelectionGrid(autopilot.desiredIncMode, modeStrings, 3, btNormal);
+                        GUILayout.EndHorizontal();
+
+                        GUILayout.BeginHorizontal();
+                        if ( core.target.NormalTargetExists && autopilot.desiredLANMode == 1 ) // target
+                            GuiUtils.SimpleTextBox("LAN:", core.target.TargetOrbit.LAN.ToString(), "º");
+                        else // manual or free
+                            GuiUtils.SimpleTextBox("LAN:", autopilot.desiredLAN, "º");
+                        autopilot.desiredLANMode = GUILayout.SelectionGrid(autopilot.desiredLANMode, modeStrings, 3, btNormal);
+                        GUILayout.EndHorizontal();
+
+                        GUILayout.BeginHorizontal();
+                        if ( core.target.NormalTargetExists && autopilot.desiredArgPMode == 1 ) // target
+                            GuiUtils.SimpleTextBox("ArgP:", core.target.TargetOrbit.argumentOfPeriapsis.ToString(), "º");
+                        else // manual or free
+                            GuiUtils.SimpleTextBox("ArgP:", autopilot.desiredArgP, "º");
+                        autopilot.desiredArgPMode = GUILayout.SelectionGrid(autopilot.desiredArgPMode, modeStrings, 3, btNormal);
+                        GUILayout.EndHorizontal();
+
+                        // disable "free" on the shape for now FIXME: buttons need to go away somehow
+                        if ( autopilot.desiredShapeMode == 2 )
+                            autopilot.desiredShapeMode = oldDesiredShapeMode;
+
+                        // fix if someone tries to select target without a target or the target goes away
+                        if ( !core.target.NormalTargetExists )
+                        {
+                            if ( autopilot.desiredShapeMode == 1 )
+                                autopilot.desiredShapeMode = ( oldDesiredShapeMode != 1 ) ? oldDesiredShapeMode : 0;
+                            if ( autopilot.desiredIncMode == 1 )
+                                autopilot.desiredIncMode = ( oldDesiredIncMode != 1 ) ? oldDesiredIncMode : 2;
+                            if ( autopilot.desiredLANMode == 1 )
+                                autopilot.desiredLANMode = ( oldDesiredLANMode != 1 ) ? oldDesiredLANMode : 2;
+                            if ( autopilot.desiredArgPMode == 1 )
+                                autopilot.desiredArgPMode = ( oldDesiredArgPMode != 1 ) ? oldDesiredArgPMode : 2;
+                        }
+
+                        // impossible ApAs result in circularization
+                        if ( autopilot.desiredApoapsis >= 0 && autopilot.desiredApoapsis < autopilot.desiredPeriapsis )
                         {
                             GUIStyle s = new GUIStyle(GUI.skin.label);
                             s.normal.textColor = Color.yellow;
                             GUILayout.Label("Ap < Pe: circularizing orbit", s);
                         }
-                        if ( pvgascent.desiredApoapsis < 0 )
+
+                        // negative ApAs result in hyperbolic orbits (which might be a nasty surprise if unintended)
+                        if ( autopilot.desiredApoapsis < 0 )
                         {
                             GUIStyle s = new GUIStyle(GUI.skin.label);
                             s.normal.textColor = XKCDColors.Orange;
                             GUILayout.Label("Hyperbolic target orbit (neg Ap)", s);
                         }
+
+                        // impossible ApAs result in circularization
+                        if ( ( autopilot.desiredArgPMode == 0 || autopilot.desiredArgPMode == 1 ) && autopilot.desiredLANMode == 2 )
+                        {
+                            GUIStyle s = new GUIStyle(GUI.skin.label);
+                            s.normal.textColor = Color.red;
+                            GUILayout.Label("Fixed ArgP without Fixed LAN may have convergence difficulties ", s);
+                        }
+                        if ( autopilot.desiredLANMode == 0 || autopilot.desiredLANMode == 1 )
+                            launchingToPlane = true;
+                        else
+                            launchingToPlane = false;
                     }
                     else
                     {
                         GuiUtils.SimpleTextBox("Orbit altitude", autopilot.desiredOrbitAltitude, "km");
-                    }
 
-                    GUIStyle si = new GUIStyle(GUI.skin.label);
-                    if (Math.Abs(desiredInclination) < Math.Abs(vesselState.latitude) - 2.001)
-                        si.onHover.textColor = si.onNormal.textColor = si.normal.textColor = XKCDColors.Orange;
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label("Orbit inc.", si, GUILayout.ExpandWidth(true));
-                    desiredInclination.text = GUILayout.TextField(desiredInclination.text, GUILayout.ExpandWidth(true), GUILayout.Width(100));
-                    GUILayout.Label("º", GUILayout.ExpandWidth(false));
-                    if (GUILayout.Button("Current"))
-                        desiredInclination.val = vesselState.latitude;
-                    GUILayout.EndHorizontal();
-                    GUILayout.BeginHorizontal();
-                    if (Math.Abs(desiredInclination) < Math.Abs(vesselState.latitude) - 2.001)
-                        GUILayout.Label(String.Format("inc {0:F1}º below current latitude", Math.Abs(vesselState.latitude) - Math.Abs(desiredInclination)), si);
-                    GUILayout.EndHorizontal();
-                    autopilot.desiredInclination = desiredInclination;
+                        GUIStyle si = new GUIStyle(GUI.skin.label);
+                        if (Math.Abs(desiredInclination) < Math.Abs(vesselState.latitude) - 2.001)
+                            si.onHover.textColor = si.onNormal.textColor = si.normal.textColor = XKCDColors.Orange;
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Label("Orbit inc.", si, GUILayout.ExpandWidth(true));
+                        desiredInclination.text = GUILayout.TextField(desiredInclination.text, GUILayout.ExpandWidth(true), GUILayout.Width(100));
+                        GUILayout.Label("º", GUILayout.ExpandWidth(false));
+                        if (GUILayout.Button("Current"))
+                            desiredInclination.val = vesselState.latitude;
+                        GUILayout.EndHorizontal();
+                        GUILayout.BeginHorizontal();
+                        if (Math.Abs(desiredInclination) < Math.Abs(vesselState.latitude) - 2.001)
+                            GUILayout.Label(String.Format("inc {0:F1}º below current latitude", Math.Abs(vesselState.latitude) - Math.Abs(desiredInclination)), si);
+                        GUILayout.EndHorizontal();
+                        autopilot.desiredInclination = desiredInclination;
+                    }
                 }
 
                 if (autopilot.showGuidanceSettings)
@@ -244,17 +320,15 @@ namespace MuMech
                         core.thrust.LimitToPreventOverheatsInfoItem();
                         //core.thrust.LimitToTerminalVelocityInfoItem();
                         core.thrust.LimitToMaxDynamicPressureInfoItem();
-                        //core.thrust.LimitAccelerationInfoItem();
+                        core.thrust.LimitAccelerationInfoItem();
                         //core.thrust.LimitThrottleInfoItem();
                         core.thrust.LimiterMinThrottleInfoItem();
                         //core.thrust.LimitElectricInfoItem();
 
-                        GUILayout.Label("FIXME: g-limiter is down for maintenance");
-                        core.thrust.limitAcceleration = false;
                         core.thrust.limitThrottle = false;
-                        core.thrust.limitToTerminalVelocity = false;
                         core.thrust.electricThrottle = false;
                     }
+                    core.thrust.limitToTerminalVelocity = false;
 
                     GUILayout.BeginHorizontal();
                     autopilot.forceRoll = GUILayout.Toggle(autopilot.forceRoll, "Force Roll");
@@ -400,7 +474,7 @@ namespace MuMech
 
                 if (vessel.LandedOrSplashed)
                 {
-                        if (core.target.NormalTargetExists)
+                        if (core.target.NormalTargetExists || (ascentPathIdx == ascentType.PVG && (autopilot.desiredLANMode == 1 || autopilot.desiredLANMode == 0)))
                         {
                             if (core.node.autowarp)
                             {
@@ -413,8 +487,11 @@ namespace MuMech
                             }
                             if (!launchingToPlane && !launchingToRendezvous && !launchingToInterplanetary)
                             {
-                                // disable plane/rendezvous/interplanetary for now
-                                if ( ascentPathIdx != ascentType.PVG )
+                                if ( ascentPathIdx == ascentType.PVG )
+                                {
+                                    launchingToPlane = true;
+                                }
+                                else
                                 {
                                     GUILayout.BeginHorizontal();
                                     if (GUILayout.Button("Launch to rendezvous:", GUILayout.ExpandWidth(false)))
@@ -428,48 +505,48 @@ namespace MuMech
                                             GUILayout.Width(60));
                                     GUILayout.Label("º", GUILayout.ExpandWidth(false));
                                     GUILayout.EndHorizontal();
-                                }
 
-                                GUILayout.BeginHorizontal();
-                                if (GUILayout.Button("Launch into plane of target", GUILayout.ExpandWidth(false)))
-                                {
-                                    launchingToPlane = true;
-
-                                    autopilot.StartCountdown(vesselState.time +
-                                            LaunchTiming.TimeToPlane(autopilot.launchLANDifference,
-                                                mainBody, vesselState.latitude, vesselState.longitude,
-                                                core.target.TargetOrbit));
-                                }
-                                autopilot.launchLANDifference.text = GUILayout.TextField(
-                                        autopilot.launchLANDifference.text, GUILayout.Width(60));
-                                GUILayout.Label("º", GUILayout.ExpandWidth(false));
-                                GUILayout.EndHorizontal();
-
-                                if (core.target.TargetOrbit.referenceBody == orbit.referenceBody.referenceBody)
-                                {
-                                    if (GUILayout.Button("Launch at interplanetary window"))
+                                    GUILayout.BeginHorizontal();
+                                    if (GUILayout.Button("Launch into plane of target", GUILayout.ExpandWidth(false)))
                                     {
-                                        launchingToInterplanetary = true;
-                                        //compute the desired launch date
-                                        OrbitalManeuverCalculator.DeltaVAndTimeForHohmannTransfer(mainBody.orbit,
-                                                core.target.TargetOrbit, vesselState.time, out interplanetaryWindowUT);
-                                        double desiredOrbitPeriod = 2 * Math.PI *
-                                            Math.Sqrt(
-                                                    Math.Pow( mainBody.Radius + autopilot.desiredOrbitAltitude, 3)
-                                                    / mainBody.gravParameter);
-                                        //launch just before the window, but don't try to launch in the past
-                                        interplanetaryWindowUT -= 3*desiredOrbitPeriod;
-                                        interplanetaryWindowUT = Math.Max(vesselState.time + autopilot.warpCountDown,
-                                                interplanetaryWindowUT);
-                                        autopilot.StartCountdown(interplanetaryWindowUT);
+                                        launchingToPlane = true;
+
+                                        autopilot.StartCountdown(vesselState.time + autopilot.MinimumTimeToPlane(core.target.TargetOrbit.LAN, core.target.TargetOrbit.inclination, autopilot.launchLANDifference));
+                                    }
+                                    autopilot.launchLANDifference.text = GUILayout.TextField(
+                                            autopilot.launchLANDifference.text, GUILayout.Width(60));
+                                    GUILayout.Label("º", GUILayout.ExpandWidth(false));
+                                    GUILayout.EndHorizontal();
+
+                                    if (core.target.TargetOrbit.referenceBody == orbit.referenceBody.referenceBody)
+                                    {
+                                        if (GUILayout.Button("Launch at interplanetary window"))
+                                        {
+                                            launchingToInterplanetary = true;
+                                            //compute the desired launch date
+                                            OrbitalManeuverCalculator.DeltaVAndTimeForHohmannTransfer(mainBody.orbit,
+                                                    core.target.TargetOrbit, vesselState.time, out interplanetaryWindowUT);
+                                            double desiredOrbitPeriod = 2 * Math.PI *
+                                                Math.Sqrt(
+                                                        Math.Pow( mainBody.Radius + autopilot.desiredOrbitAltitude, 3)
+                                                        / mainBody.gravParameter);
+                                            //launch just before the window, but don't try to launch in the past
+                                            interplanetaryWindowUT -= 3*desiredOrbitPeriod;
+                                            interplanetaryWindowUT = Math.Max(vesselState.time + autopilot.warpCountDown,
+                                                    interplanetaryWindowUT);
+                                            autopilot.StartCountdown(interplanetaryWindowUT);
+                                        }
                                     }
                                 }
                             }
                         }
                         else
                         {
-                            launchingToInterplanetary = launchingToPlane = launchingToRendezvous = false;
-                            GUILayout.Label("Select a target for a timed launch.");
+                            if ( ascentPathIdx != ascentType.PVG )
+                            {
+                                launchingToInterplanetary = launchingToPlane = launchingToRendezvous = false;
+                                GUILayout.Label("Select a target for a timed launch.");
+                            }
                         }
 
                         if (launchingToInterplanetary || launchingToPlane || launchingToRendezvous)
@@ -481,9 +558,28 @@ namespace MuMech
                             }
                             else if (launchingToPlane)
                             {
-                                desiredInclination *=
-                                    Math.Sign(Vector3d.Dot(core.target.TargetOrbit.SwappedOrbitNormal(),
-                                                Vector3d.Cross(vesselState.CoM - mainBody.position, mainBody.transform.up)));
+                                if ( ascentPathIdx != ascentType.PVG )
+                                {
+                                    desiredInclination = MuUtils.Clamp(core.target.TargetOrbit.inclination, Math.Abs(vesselState.latitude), 180 - Math.Abs(vesselState.latitude));
+                                    desiredInclination *=
+                                        Math.Sign(Vector3d.Dot(core.target.TargetOrbit.SwappedOrbitNormal(),
+                                                    Vector3d.Cross(vesselState.CoM - mainBody.position, mainBody.transform.up)));
+                                }
+                                else
+                                {
+                                    if ( autopilot.desiredIncMode == 0 ) // man
+                                    {
+                                        desiredInclination = autopilot.desiredInclination;
+                                    }
+                                    else if ( autopilot.desiredIncMode == 1 ) // targ
+                                    {
+                                        desiredInclination = core.target.TargetOrbit.inclination;
+                                    }
+                                    else // current
+                                    {
+                                        desiredInclination = vessel.orbit.inclination;
+                                    }
+                                }
                                 message = "Launching to target plane";
                             }
                             else if (launchingToRendezvous)
