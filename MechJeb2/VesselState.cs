@@ -708,7 +708,7 @@ namespace MuMech
             //}
             //else
             //{
-            // FIXME: whatever needed this value should use some other value 'cuz orbitLAN needs to be orbit.LAN on the display.
+            // FIXME: whatever needed this value should use orbitLongitude now
             //    orbitLAN.value = -(vessel.transform.position - vessel.mainBody.transform.position).AngleInPlane(Planetarium.Zup.Z, Planetarium.Zup.X);
             //    orbitTimeToAp.value = 0;
             //}
@@ -717,15 +717,15 @@ namespace MuMech
             orbitInclination.value = vessel.orbit.inclination;
             orbitEccentricity.value = vessel.orbit.eccentricity;
             orbitSemiMajorAxis.value = vessel.orbit.semiMajorAxis;
-            orbitLongitude.value = MuUtils.SignedAngle(Planetarium.right, orbitalPosition, -Planetarium.up);
+            orbitLongitude.value = Planetarium.right.AngleInPlane(-Planetarium.up, orbitalPosition);
             latitude.value = vessel.mainBody.GetLatitude(CoM);
             longitude.value = MuUtils.ClampDegrees180(vessel.mainBody.GetLongitude(CoM));
 
             if (vessel.mainBody != Planetarium.fetch.Sun)
             {
-                Vector3d delta = vessel.mainBody.getPositionAtUT(Planetarium.GetUniversalTime() + 1) - vessel.mainBody.getPositionAtUT(Planetarium.GetUniversalTime() - 1);
-                Vector3d plUp = Vector3d.Cross(vessel.mainBody.getPositionAtUT(Planetarium.GetUniversalTime()) - vessel.mainBody.referenceBody.getPositionAtUT(Planetarium.GetUniversalTime()), vessel.mainBody.getPositionAtUT(Planetarium.GetUniversalTime() + vessel.mainBody.orbit.period / 4) - vessel.mainBody.referenceBody.getPositionAtUT(Planetarium.GetUniversalTime() + vessel.mainBody.orbit.period / 4)).normalized;
-                angleToPrograde = MuUtils.ClampDegrees360((((vessel.orbit.inclination > 90) || (vessel.orbit.inclination < -90)) ? 1 : -1) * ((Vector3)up).AngleInPlane(plUp, delta));
+                Vector3d prograde = vessel.mainBody.orbit.getOrbitalVelocityAtUT(time).xzy;
+                Vector3d normal = vessel.mainBody.orbit.GetOrbitNormal().xzy;
+                angleToPrograde = MuUtils.ClampDegrees360( (((vessel.orbit.inclination > 90) || (vessel.orbit.inclination < -90)) ? 1 : -1) * orbitalPosition.AngleInPlane(normal, prograde) );
             }
             else
             {

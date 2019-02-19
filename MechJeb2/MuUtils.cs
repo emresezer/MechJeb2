@@ -122,15 +122,6 @@ namespace MuMech
             return Math.Min((angle1 - angle2 + 360) % 360, (angle2 - angle1 + 360) % 360);
         }
 
-        // equivalent to Unity's Vector3.SignedAngle() -- beware of lefthandedness of course
-        public static double SignedAngle(Vector3d one, Vector3d two, Vector3d normal)
-        {
-            double angle = Math.Acos(Vector3d.Dot(one.normalized, two.normalized)) * UtilMath.Rad2Deg;
-            if ( Vector3d.Dot(normal, Vector3d.Cross(one, two)) < 0 )
-                return -angle;
-            return angle;
-        }
-
         public static double IntPow(double val, int exp) {
             double result = val;
             for(int i=1;i<exp;++i)
