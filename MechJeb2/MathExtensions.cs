@@ -50,16 +50,6 @@ namespace MuMech
             return new Vector3d(vector.x != 0 ? 1 / vector.x : 0, vector.y != 0 ? 1 / vector.y: 0, vector.z != 0 ? 1 / vector.z: 0);
         }
 
-        public static Vector3 ProjectIntoPlane(this Vector3 vector, Vector3 planeNormal)
-        {
-            return vector - Vector3.Project(vector, planeNormal);
-        }
-
-        public static Vector3d ProjectIntoPlane(this Vector3d vector, Vector3d planeNormal)
-        {
-            return vector - Vector3d.Project(vector, planeNormal);
-        }
-
         public static Vector3d ProjectOnPlane(this Vector3d vector, Vector3d planeNormal)
         {
             return vector - Vector3d.Project(vector, planeNormal);
@@ -95,8 +85,8 @@ namespace MuMech
         // projects the two vectors onto the normal plane and computes the 0 to 360 angle
         public static double AngleInPlane(this Vector3d vector, Vector3d planeNormal, Vector3d other)
         {
-            Vector3d v1 = vector.ProjectIntoPlane(planeNormal);
-            Vector3d v2 = other.ProjectIntoPlane(planeNormal);
+            Vector3d v1 = vector.ProjectOnPlane(planeNormal);
+            Vector3d v2 = other.ProjectOnPlane(planeNormal);
 
             if ((v1.magnitude == 0) || (v2.magnitude == 0))
                 return double.NaN;
