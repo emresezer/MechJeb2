@@ -5,7 +5,8 @@ using UnityEngine;
 
 namespace MuMech {
     public class PontryaginLaunch : PontryaginBase {
-        public PontryaginLaunch(MechJebCore core, double mu, Vector3d r0, Vector3d v0, Vector3d pv0, Vector3d pr0, double dV) : base(core, mu, r0, v0, pv0, pr0, dV)
+        // FIXME: pr0 and pv0 need to be moved into the target constraint setting routines and need to not be the responsibility of the caller
+        public PontryaginLaunch(MechJebCore core, double mu, Vector3d r0, Vector3d v0, Vector3d pr0, double dV) : base(core, mu, r0, v0, r0.normalized * 8.0/3.0, pr0, dV)
         {
         }
 

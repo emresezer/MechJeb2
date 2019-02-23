@@ -272,7 +272,7 @@ namespace MuMech
                 Vector3d desiredHeadingVector = Math.Sin(desiredHeading * UtilMath.Deg2Rad) * vesselState.east + Math.Cos(desiredHeading * UtilMath.Deg2Rad) * vesselState.north;
                 Vector3d desiredThrustVector = Math.Cos(45 * UtilMath.Deg2Rad) * desiredHeadingVector + Math.Sin(45 * UtilMath.Deg2Rad) * vesselState.up;  /* 45 pitch guess */
                 lambda = desiredThrustVector;
-                PontryaginLaunch solver = new PontryaginLaunch(core: core, mu: mainBody.gravParameter, r0: vesselState.orbitalPosition, v0: vesselState.orbitalVelocity, pv0: lambda.normalized, pr0: Vector3d.zero, dV: v0m);
+                PontryaginLaunch solver = new PontryaginLaunch(core: core, mu: mainBody.gravParameter, r0: vesselState.orbitalPosition, v0: vesselState.orbitalVelocity, pr0: Vector3d.zero, dV: v0m);
                 solver.omitCoast = omitCoast;
                 Vector3d pos, vel;
                 o.GetOrbitalStateVectorsAtUT(vesselState.time, out pos, out vel);
@@ -313,7 +313,7 @@ namespace MuMech
                 Vector3d desiredHeadingVector = Math.Sin(desiredHeading * UtilMath.Deg2Rad) * vesselState.east + Math.Cos(desiredHeading * UtilMath.Deg2Rad) * vesselState.north;
                 Vector3d desiredThrustVector = Math.Cos(45 * UtilMath.Deg2Rad) * desiredHeadingVector + Math.Sin(45 * UtilMath.Deg2Rad) * vesselState.up;  /* 45 pitch guess */
                 lambda = desiredThrustVector;
-                PontryaginLaunch solver = new PontryaginLaunch(core: core, mu: mainBody.gravParameter, r0: vesselState.orbitalPosition, v0: vesselState.orbitalVelocity, pv0: lambda.normalized, pr0: Vector3d.zero, dV: v0m);
+                PontryaginLaunch solver = new PontryaginLaunch(core: core, mu: mainBody.gravParameter, r0: vesselState.orbitalPosition, v0: vesselState.orbitalVelocity, pr0: Vector3d.zero, dV: v0m);
                 solver.omitCoast = omitCoast;
                 solver.flightangle4constraint(r0m, v0m, 0, inc * UtilMath.Deg2Rad);
                 p = solver;
@@ -342,7 +342,7 @@ namespace MuMech
             lambda = desiredThrustVector;
             Debug.Log("sma = " + sma);
             Debug.Log("deltaV guess = " + approximateDeltaV(sma));
-            return new PontryaginLaunch(core: core, mu: mainBody.gravParameter, r0: vesselState.orbitalPosition, v0: vesselState.orbitalVelocity, pv0: lambda.normalized, pr0: Vector3d.zero, dV: approximateDeltaV(sma));
+            return new PontryaginLaunch(core: core, mu: mainBody.gravParameter, r0: vesselState.orbitalPosition, v0: vesselState.orbitalVelocity, pr0: Vector3d.zero, dV: approximateDeltaV(sma));
         }
 
         public void target3constraint(double PeA, double ApA, double inc, bool omitCoast)
