@@ -378,29 +378,34 @@ namespace MuMech {
 
             //Debug.Log("optimizer done");
 
-            new_sol = new Solution(t_scale, v_scale, r_scale, t0);
-            multipleIntegrate(y0, new_sol, arcs, 10);
 
             //for(int k = 0; k < y0.Length; k++)
             //    Debug.Log("y0[" + k + "] = " + y0[k]);
 
             if (insertedCoast)
             {
-                if ( new_sol.tgo(new_sol.t0, arcs.Count-2) < 1 )
+                new_sol = new Solution(t_scale, v_scale, r_scale, t0);
+                multipleIntegrate(y0, new_sol, arcs, 10);
+
+                double coastlen = new_sol.tgo(new_sol.t0, arcs.Count-2); // human seconds
+
+                if ( coastlen < 1 )
                 {
-                    // coast is less than one second, delete it and reconverge
+                    DebugLog("optimum coast of " + coastlen + " seconds was removed from the solution");
+
                     RemoveArc(arcs, arcs.Count-2, new_sol);
 
                     if ( !runOptimizer(arcs) )
                     {
-                        Fatal("failed to converge after removing zero length coast");
+                        Fatal("failed to converge after removing negative length coast after jettison");
                         return;
                     }
 
-                    new_sol = new Solution(t_scale, v_scale, r_scale, t0);
-                    multipleIntegrate(y0, new_sol, arcs, 10);
                 }
             }
+
+            new_sol = new Solution(t_scale, v_scale, r_scale, t0);
+            multipleIntegrate(y0, new_sol, arcs, 10);
 
             //for(int k = 0; k < y0.Length; k++)
                 //Debug.Log("new y0[" + k + "] = " + y0[k]);

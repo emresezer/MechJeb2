@@ -290,7 +290,6 @@ namespace MuMech
             }
 
             if (autoThrottle) {
-                Debug.Log("prelaunch killing throttle");
                 core.thrust.ThrustOff();
             }
 
@@ -322,7 +321,6 @@ namespace MuMech
         {
             if (timedLaunch)
             {
-                Debug.Log("Awaiting Liftoff");
                 status = "Awaiting liftoff";
                 // kill the optimizer if it is running.
                 core.guidance.enabled = false;

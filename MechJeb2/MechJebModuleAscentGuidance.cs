@@ -141,18 +141,24 @@ namespace MuMech
                 {
                     if (ascentPathIdx == ascentType.PVG)
                     {
+                        string[] modeStringsNOFRE = { "MAN", "TGT" };
+                        string[] modeStringsINC = { "MAN", "TGT", "CUR" };
                         string[] modeStrings = { "MAN", "TGT", "FRE" };
                         int oldDesiredShapeMode = autopilot.desiredShapeMode;
                         int oldDesiredIncMode = autopilot.desiredIncMode;
                         int oldDesiredLANMode = autopilot.desiredLANMode;
                         int oldDesiredArgPMode = autopilot.desiredArgPMode;
+                        Orbit oldTarget = null;
+
+                        float gridWidth = 120;
 
                         GUILayout.BeginHorizontal();
                         if ( core.target.NormalTargetExists && autopilot.desiredShapeMode == 1 ) // target
                             GuiUtils.SimpleTextBox("PeA:", ( core.target.TargetOrbit.PeA / 1000.0 ).ToString(), "km");
                         else // manual
                             GuiUtils.SimpleTextBox("PeA:", autopilot.desiredPeriapsis, "km");
-                        autopilot.desiredShapeMode = GUILayout.SelectionGrid(autopilot.desiredShapeMode, modeStrings, 3, btNormal);
+                        autopilot.desiredShapeMode = GUILayout.SelectionGrid(autopilot.desiredShapeMode, modeStringsNOFRE, 2, btNormal, GUILayout.Width(2.0f*gridWidth/3.0f));
+                        GUILayout.Space(gridWidth/3.0f);
                         GUILayout.EndHorizontal();
 
                         GUILayout.BeginHorizontal();
@@ -160,7 +166,8 @@ namespace MuMech
                             GuiUtils.SimpleTextBox("ApA:", ( core.target.TargetOrbit.ApA / 1000.0 ).ToString(), "km");
                         else // manual
                             GuiUtils.SimpleTextBox("ApA:", autopilot.desiredApoapsis, "km");
-                        autopilot.desiredShapeMode = GUILayout.SelectionGrid(autopilot.desiredShapeMode, modeStrings, 3, btNormal);
+                        autopilot.desiredShapeMode = GUILayout.SelectionGrid(autopilot.desiredShapeMode, modeStringsNOFRE, 2, btNormal, GUILayout.Width(2.0f*gridWidth/3.0f));
+                        GUILayout.Space(gridWidth/3.0f);
                         GUILayout.EndHorizontal();
 
                         GUILayout.BeginHorizontal();
@@ -170,7 +177,7 @@ namespace MuMech
                             GuiUtils.SimpleTextBox("Inc:", vessel.orbit.inclination.ToString(), "º");
                         else // manual
                             GuiUtils.SimpleTextBox("Inc:", autopilot.desiredInclination, "º");
-                        autopilot.desiredIncMode = GUILayout.SelectionGrid(autopilot.desiredIncMode, modeStrings, 3, btNormal);
+                        autopilot.desiredIncMode = GUILayout.SelectionGrid(autopilot.desiredIncMode, modeStringsINC, 3, btNormal, GUILayout.Width(gridWidth));
                         GUILayout.EndHorizontal();
 
                         GUILayout.BeginHorizontal();
@@ -178,7 +185,7 @@ namespace MuMech
                             GuiUtils.SimpleTextBox("LAN:", core.target.TargetOrbit.LAN.ToString(), "º");
                         else // manual or free
                             GuiUtils.SimpleTextBox("LAN:", autopilot.desiredLAN, "º");
-                        autopilot.desiredLANMode = GUILayout.SelectionGrid(autopilot.desiredLANMode, modeStrings, 3, btNormal);
+                        autopilot.desiredLANMode = GUILayout.SelectionGrid(autopilot.desiredLANMode, modeStrings, 3, btNormal, GUILayout.Width(gridWidth));
                         GUILayout.EndHorizontal();
 
                         GUILayout.BeginHorizontal();
@@ -186,7 +193,7 @@ namespace MuMech
                             GuiUtils.SimpleTextBox("ArgP:", core.target.TargetOrbit.argumentOfPeriapsis.ToString(), "º");
                         else // manual or free
                             GuiUtils.SimpleTextBox("ArgP:", autopilot.desiredArgP, "º");
-                        autopilot.desiredArgPMode = GUILayout.SelectionGrid(autopilot.desiredArgPMode, modeStrings, 3, btNormal);
+                        autopilot.desiredArgPMode = GUILayout.SelectionGrid(autopilot.desiredArgPMode, modeStrings, 3, btNormal, GUILayout.Width(gridWidth));
                         GUILayout.EndHorizontal();
 
                         // disable "free" on the shape for now FIXME: buttons need to go away somehow
@@ -205,6 +212,16 @@ namespace MuMech
                             if ( autopilot.desiredArgPMode == 1 )
                                 autopilot.desiredArgPMode = ( oldDesiredArgPMode != 1 ) ? oldDesiredArgPMode : 2;
                         }
+
+                        // force reintialization of the launch countdown if the mode switches
+                        if ( oldDesiredLANMode != autopilot.desiredLANMode )
+                            launchingToPlane = false;
+
+                        // also force reinitialization if the target orbit changes
+                        if ( oldTarget != core.target.TargetOrbit )
+                            launchingToPlane = false;
+
+                        oldTarget = core.target.TargetOrbit;
 
                         // impossible ApAs result in circularization
                         if ( autopilot.desiredApoapsis >= 0 && autopilot.desiredApoapsis < autopilot.desiredPeriapsis )
@@ -229,10 +246,6 @@ namespace MuMech
                             s.normal.textColor = Color.red;
                             GUILayout.Label("Fixed ArgP without Fixed LAN may have convergence difficulties ", s);
                         }
-                        if ( autopilot.desiredLANMode == 0 || autopilot.desiredLANMode == 1 )
-                            launchingToPlane = true;
-                        else
-                            launchingToPlane = false;
                     }
                     else
                     {
@@ -474,7 +487,7 @@ namespace MuMech
 
                 if (vessel.LandedOrSplashed)
                 {
-                        if (core.target.NormalTargetExists || (ascentPathIdx == ascentType.PVG && (autopilot.desiredLANMode == 1 || autopilot.desiredLANMode == 0)))
+                        if ((ascentPathIdx != ascentType.PVG && core.target.NormalTargetExists) || (ascentPathIdx == ascentType.PVG && (autopilot.desiredLANMode == 1 || autopilot.desiredLANMode == 0)))
                         {
                             if (core.node.autowarp)
                             {
@@ -490,6 +503,11 @@ namespace MuMech
                                 if ( ascentPathIdx == ascentType.PVG )
                                 {
                                     launchingToPlane = true;
+                                    // FIXME: ask the guidance controller for a real solution or whatever
+                                    if ( autopilot.desiredLANMode == 1 )
+                                        autopilot.StartCountdown(vesselState.time + autopilot.MinimumTimeToPlane(core.target.TargetOrbit.LAN, core.target.TargetOrbit.inclination, autopilot.launchLANDifference));
+                                    else
+                                        autopilot.StartCountdown(vesselState.time + autopilot.MinimumTimeToPlane(autopilot.desiredLAN, autopilot.desiredInclination, autopilot.launchLANDifference));
                                 }
                                 else
                                 {
@@ -542,9 +560,9 @@ namespace MuMech
                         }
                         else
                         {
+                            launchingToInterplanetary = launchingToPlane = launchingToRendezvous = false;
                             if ( ascentPathIdx != ascentType.PVG )
                             {
-                                launchingToInterplanetary = launchingToPlane = launchingToRendezvous = false;
                                 GUILayout.Label("Select a target for a timed launch.");
                             }
                         }
@@ -594,9 +612,12 @@ namespace MuMech
 
                             GUILayout.Label(message);
 
-                            if (GUILayout.Button("Abort"))
-                                launchingToInterplanetary =
-                                    launchingToPlane = launchingToRendezvous = autopilot.timedLaunch = false;
+                            if ( ascentPathIdx != ascentType.PVG )
+                            {
+                                if (GUILayout.Button("Abort"))
+                                    launchingToInterplanetary =
+                                        launchingToPlane = launchingToRendezvous = autopilot.timedLaunch = false;
+                            }
                         }
                 }
 

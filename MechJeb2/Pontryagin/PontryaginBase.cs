@@ -894,20 +894,10 @@ namespace MuMech {
                     int index = arcIndex(arcs, i, parameters: true);
                     if (total_bt_bar > y0[0] || (i == arcs.Count -1))
                     {
-                        if (arcs[i].coast_after_jettison)
-                        {
-                            z[n] = y0[index];
-                            n++;
-                            z[n] = y0[index+1];
-                            n++;
-                        }
-                        else
-                        {
-                            z[n] = y0[index];
-                            n++;
-                            z[n] = y0[index+1];
-                            n++;
-                        }
+                        z[n] = y0[index];
+                        n++;
+                        z[n] = y0[index+1];
+                        n++;
                     }
                     else
                     {
@@ -923,62 +913,12 @@ namespace MuMech {
                         Vector3d pr2 = new Vector3d(yf[i*13+9], yf[i*13+10], yf[i*13+11]);
                         double r2m = r2.magnitude;
 
-                        double H0t1 = Vector3d.Dot(pr, v) - Vector3d.Dot(pv, r) / (rm * rm * rm);
+                        //double H0t1 = Vector3d.Dot(pr, v) - Vector3d.Dot(pv, r) / (rm * rm * rm);
                         double H0t2 = Vector3d.Dot(pr2, v2) - Vector3d.Dot(pv2, r2) / (r2m * r2m * r2m);
-                        if (arcs[i].coast_after_jettison)
-                        {
-                            //z[n] = y0[index];
-                            z[n] = ( 1.0 - 1.0 / (y0[index]/1.0e-2 + 1.0) ) * H0t2 * ( 1.0 + 1.0 / ( ( y0[index] - MAX_COAST_TAU ) / 1e-2 - 1.0 ) );
 
-                            //if (y0[index] <= 0 || y0[index] >= 2)
-                            //    z[n] = 0;
-                            //else
-                            //    z[n] = H0t2;
-
-                            // z[n] = H0t2;
-
-
-                            //z[n] = y0[index];
-                            // z[n] = pv2.magnitude - pv.magnitude;
-                        }
-                        else
-                        {
-                            /* H0 at the end of the coast = 0 */
-                            z[n] = H0t2;
-                        }
-
-                        /*
-                        if (i == 0 || i == arcs.Count - 1)
-                        {
-                            // first or last coast
-                            z[n] = Vector3d.Dot(pr2, v2) - Vector3d.Dot(pv2, r2) / (r2m * r2m * r2m);
-                        }
-                        else
-                        {
-                            // interior coasts
-                            z[n] = pv2.magnitude - pv.magnitude;
-                        }
-                        */
-
+                        z[n] = H0t2;
                         n++;
-
-                        if (arcs[i].coast_after_jettison)
-                        {
-                            //z[n] = ( y0[index] < 0 ) ? y0[index] - y0[index+1] * y0[index+1] : y0[index+1] * y0[index+1];
-                            //z[n] = y0[index] - Math.Abs(y0[index+1]); // * y0[index+1];
-                            z[n] = y0[index+1];
-                            //n++;
-                            //z[n] = ( y0[index] > 2 ) ? y0[index] - 2 + y0[index+2] * y0[index+2] : y0[index+2] * y0[index+2];
-                            //z[n] = y0[index] - 2 + Math.Abs(y0[index+2]); // * y0[index+2];
-                            //z[n] = y0[index+2];
-                        }
-                        else
-                        {
-                            //if ( y0[index] < 0 )
-                            //    z[n-1] = 0;
-                            z[n] = y0[index+1];
-                            // z[n] = y0[index] - y0[index+1] * y0[index+1];
-                        }
+                        z[n] = y0[index+1];
                         n++;
                     }
                 }
@@ -1039,16 +979,6 @@ namespace MuMech {
             }
 
             bndl[0] = 0;
-
-            for(int i = 0; i < arcs.Count; i++)
-            {
-                if (arcs[i].coast_after_jettison)
-                {
-                    int j = arcIndex(arcs, i, parameters: true);
-                    bndl[j] = 0.0;
-                    bndu[j] = MAX_COAST_TAU;
-                }
-            }
 
             alglib.minlmstate state;
             alglib.minlmreport rep = new alglib.minlmreport();
@@ -1391,6 +1321,18 @@ namespace MuMech {
             }
         }
 
+        Queue<string> logQueue = new Queue<string>();
+        Mutex mut = new Mutex();
+
+        // lets us Debug.Log events from the computation thread in a thread-safe fashion
+        //
+        protected void DebugLog(string s)
+        {
+            mut.WaitOne();
+            logQueue.Enqueue(s);
+            mut.ReleaseMutex();
+        }
+
         // need to call this every tick or so in order to dump exceptions to the log from
         // the main thread since Debug.Log is not threadsafe in Unity.  (this must also
         // obviously be kept safe to call every tick and must not update any inputs from
@@ -1401,20 +1343,29 @@ namespace MuMech {
             if ( last_alglib_exception != null )
             {
                 alglib.alglibexception e = last_alglib_exception;
+                last_alglib_exception = null;
                 Debug.Log("An exception occurred: " + e.GetType().Name);
                 Debug.Log("Message: " + e.Message);
                 Debug.Log("MSG: " + e.msg);
                 Debug.Log("Stack Trace:\n" + e.StackTrace);
-                last_alglib_exception = null;
             }
             if ( last_exception != null )
             {
                 Exception e = last_exception;
+                last_exception = null;
                 Debug.Log("An exception occurred: " + e.GetType().Name);
                 Debug.Log("Message: " + e.Message);
                 Debug.Log("Stack Trace:\n" + e.StackTrace);
-                last_exception = null;
             }
+
+            string s;
+
+            mut.WaitOne();
+            while ( logQueue.Count > 0 )
+            {
+                Debug.Log(logQueue.Dequeue());
+            }
+            mut.ReleaseMutex();
         }
 
         public void KillThread()

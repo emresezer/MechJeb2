@@ -345,7 +345,7 @@ namespace MuMech
             return new PontryaginLaunch(core: core, mu: mainBody.gravParameter, r0: vesselState.orbitalPosition, v0: vesselState.orbitalVelocity, pr0: Vector3d.zero, dV: approximateDeltaV(sma));
         }
 
-        public void target3constraint(double PeA, double ApA, double inc, bool omitCoast)
+        public void target3constraint(double PeA, double ApA, double inc, bool omitCoast, bool currentInc)
         {
             if ( status == PVGStatus.ENABLED )
                 return;
@@ -356,7 +356,11 @@ namespace MuMech
 
             ConvertToSMAEcc(PeA, ApA, out sma, out ecc);
 
-            if (PeA != old_PeA || ApA != old_ApA || inc != old_inc)
+            if (PeA != old_PeA || ApA != old_ApA)
+                doupdate = true;
+
+            // avoid slight drift in the current inclination from resetting guidance constantly
+            if (inc != old_inc && !currentInc)
                 doupdate = true;
 
             if (p == null || doupdate)
@@ -376,7 +380,7 @@ namespace MuMech
             old_inc = inc;
         }
 
-        public void target4constraintArgPfree(double PeA, double ApA, double inc, double LAN, bool omitCoast)
+        public void target4constraintArgPfree(double PeA, double ApA, double inc, double LAN, bool omitCoast, bool currentInc)
         {
             if ( status == PVGStatus.ENABLED )
                 return;
@@ -387,7 +391,11 @@ namespace MuMech
 
             ConvertToSMAEcc(PeA, ApA, out sma, out ecc);
 
-            if (PeA != old_PeA || ApA != old_ApA || inc != old_inc || LAN != old_LAN)
+            if (PeA != old_PeA || ApA != old_ApA || LAN != old_LAN)
+                doupdate = true;
+
+            // avoid slight drift in the current inclination from resetting guidance constantly
+            if (inc != old_inc && !currentInc)
                 doupdate = true;
 
             if (p == null || doupdate)
@@ -408,7 +416,7 @@ namespace MuMech
             old_LAN = LAN;
         }
 
-        public void target4constraintLANfree(double PeA, double ApA, double inc, double ArgP, bool omitCoast)
+        public void target4constraintLANfree(double PeA, double ApA, double inc, double ArgP, bool omitCoast, bool currentInc)
         {
             if ( status == PVGStatus.ENABLED )
                 return;
@@ -419,7 +427,11 @@ namespace MuMech
 
             ConvertToSMAEcc(PeA, ApA, out sma, out ecc);
 
-            if (PeA != old_PeA || ApA != old_ApA || inc != old_inc || ArgP != old_ArgP)
+            if (PeA != old_PeA || ApA != old_ApA || ArgP != old_ArgP)
+                doupdate = true;
+
+            // avoid slight drift in the current inclination from resetting guidance constantly
+            if (inc != old_inc && !currentInc)
                 doupdate = true;
 
             if (p == null || doupdate)
@@ -440,7 +452,7 @@ namespace MuMech
             old_ArgP = ArgP;
         }
 
-        public void target5constraint(double PeA, double ApA, double inc, double LAN, double ArgP, bool omitCoast)
+        public void target5constraint(double PeA, double ApA, double inc, double LAN, double ArgP, bool omitCoast, bool currentInc)
         {
             if ( status == PVGStatus.ENABLED )
                 return;
@@ -452,6 +464,10 @@ namespace MuMech
             ConvertToSMAEcc(PeA, ApA, out sma, out ecc);
 
             if (PeA != old_PeA || ApA != old_ApA || inc != old_inc || LAN != old_LAN || ArgP != old_ArgP)
+                doupdate = true;
+
+            // avoid slight drift in the current inclination from resetting guidance constantly
+            if (inc != old_inc && !currentInc)
                 doupdate = true;
 
             if (p == null || doupdate)
