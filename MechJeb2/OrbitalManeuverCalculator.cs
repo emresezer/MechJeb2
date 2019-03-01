@@ -175,7 +175,7 @@ namespace MuMech
         public static double HeadingForInclination(double inclinationDegrees, double latitudeDegrees)
         {
             // this produces northgoing headings of [-90, 90]
-            double heading = Math.Asin( MuUtils.Clamp( Math.Cos(inclinationDegrees * UtilMath.Deg2Rad) / Math.Cos(latitudeDegrees * UtilMath.Deg2Rad), -1, 1 ) );
+            double heading = Math.Asin( MuUtils.Clamp( Math.Cos(inclinationDegrees * UtilMath.Deg2Rad) / Math.Cos(latitudeDegrees * UtilMath.Deg2Rad), -1, 1 ) ) * UtilMath.Rad2Deg;
 
             // this produces southgoing headings of [90, 270] when the calling inclination is negative
             // NOTE: that all negative inclination headings are southgoing, so that -270 degree inclination acts like -90 degrees, not like 90 degrees.

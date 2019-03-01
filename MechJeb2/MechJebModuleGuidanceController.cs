@@ -1,4 +1,5 @@
 ﻿using System;
+
 using UnityEngine;
 using KSP.UI.Screens;
 using System.Collections.Generic;
@@ -240,26 +241,29 @@ namespace MuMech
             ecc = (ApR - PeR) / (ApR + PeR);
         }
 
-        double old_v0m;
-        double old_r0m;
         double old_PeA;
         double old_ApA;
         double old_inc;
+        double old_gamma;
         double old_LAN;
         double old_ArgP;
 
-        public void TargetPeInsertMatchOrbitPlane(double PeA, double ApA, Orbit o, bool omitCoast)
+        public void flightangle4constraint(double PeA, double ApA, double inc, double gamma, bool omitCoast, bool currentInc)
         {
             if ( status == PVGStatus.ENABLED )
                 return;
 
             bool doupdate = false;
 
-            double v0m, r0m, sma;
+            double r0m, v0m, sma;
 
             ConvertToRadVel(PeA, ApA, out r0m, out v0m, out sma);
 
-            if (r0m != old_r0m || v0m != old_v0m)
+            if (PeA != old_PeA || ApA != old_ApA || gamma != old_gamma)
+                doupdate = true;
+
+            // avoid slight drift in the current inclination from resetting guidance constantly
+            if (inc != old_inc && !currentInc)
                 doupdate = true;
 
             if (p == null || doupdate)
@@ -267,38 +271,35 @@ namespace MuMech
                 if (p != null)
                     p.KillThread();
 
-                lambdaDot = Vector3d.zero;
-                double desiredHeading = OrbitalManeuverCalculator.HeadingForInclination(o.inclination, vesselState.latitude);
-                Vector3d desiredHeadingVector = Math.Sin(desiredHeading * UtilMath.Deg2Rad) * vesselState.east + Math.Cos(desiredHeading * UtilMath.Deg2Rad) * vesselState.north;
-                Vector3d desiredThrustVector = Math.Cos(45 * UtilMath.Deg2Rad) * desiredHeadingVector + Math.Sin(45 * UtilMath.Deg2Rad) * vesselState.up;  /* 45 pitch guess */
-                lambda = desiredThrustVector;
-                PontryaginLaunch solver = new PontryaginLaunch(core: core, mu: mainBody.gravParameter, r0: vesselState.orbitalPosition, v0: vesselState.orbitalVelocity, pr0: Vector3d.zero, dV: v0m);
+                Debug.Log("[MechJeb] MechJebModuleGuidanceController: setting up flightangle5constraint");
+                PontryaginLaunch solver = NewPontryaginForLaunch(inc, sma);
                 solver.omitCoast = omitCoast;
-                Vector3d pos, vel;
-                o.GetOrbitalStateVectorsAtUT(vesselState.time, out pos, out vel);
-                Vector3d h = Vector3d.Cross(pos.xzy, vel.xzy);
-                double hTm = v0m * r0m; // FIXME: gamma
-                solver.flightangle5constraint(r0m, v0m, 0, h.normalized * hTm);
+                solver.flightangle4constraint(r0m, v0m, inc * UtilMath.Deg2Rad, gamma * UtilMath.Deg2Rad);
                 p = solver;
-                Debug.Log("created TargetPeInsertMatchOrbitPlane solver");
             }
 
-            old_v0m = v0m;
-            old_r0m = r0m;
+            old_PeA   = PeA;
+            old_ApA   = ApA;
+            old_inc   = inc;
+            old_gamma = gamma;
         }
 
-        public void TargetPeInsertMatchInc(double PeA, double ApA, double inc, bool omitCoast)
+        public void flightangle5constraint(double PeA, double ApA, double inc, double gamma, double LAN, bool omitCoast, bool currentInc)
         {
             if ( status == PVGStatus.ENABLED )
                 return;
 
             bool doupdate = false;
 
-            double v0m, r0m, sma;
+            double r0m, v0m, sma;
 
             ConvertToRadVel(PeA, ApA, out r0m, out v0m, out sma);
 
-            if (r0m != old_r0m || v0m != old_v0m || inc != old_inc)
+            if (PeA != old_PeA || ApA != old_ApA || gamma != old_gamma || LAN != old_LAN)
+                doupdate = true;
+
+            // avoid slight drift in the current inclination from resetting guidance constantly
+            if (inc != old_inc && !currentInc)
                 doupdate = true;
 
             if (p == null || doupdate)
@@ -306,23 +307,20 @@ namespace MuMech
                 if (p != null)
                     p.KillThread();
 
-                //Debug.Log("mainbody.Radius = " + mainBody.Radius);
-                //Debug.Log("mainbody.gravParameter = " + mainBody.gravParameter);
-                lambdaDot = Vector3d.zero;
-                double desiredHeading = OrbitalManeuverCalculator.HeadingForInclination(inc, vesselState.latitude);
-                Vector3d desiredHeadingVector = Math.Sin(desiredHeading * UtilMath.Deg2Rad) * vesselState.east + Math.Cos(desiredHeading * UtilMath.Deg2Rad) * vesselState.north;
-                Vector3d desiredThrustVector = Math.Cos(45 * UtilMath.Deg2Rad) * desiredHeadingVector + Math.Sin(45 * UtilMath.Deg2Rad) * vesselState.up;  /* 45 pitch guess */
-                lambda = desiredThrustVector;
-                PontryaginLaunch solver = new PontryaginLaunch(core: core, mu: mainBody.gravParameter, r0: vesselState.orbitalPosition, v0: vesselState.orbitalVelocity, pr0: Vector3d.zero, dV: v0m);
+                Debug.Log("[MechJeb] MechJebModuleGuidanceController: setting up flightangle5constraint");
+                PontryaginLaunch solver = NewPontryaginForLaunch(inc, sma);
                 solver.omitCoast = omitCoast;
-                solver.flightangle4constraint(r0m, v0m, 0, inc * UtilMath.Deg2Rad);
+                solver.flightangle5constraint(r0m, v0m, inc * UtilMath.Deg2Rad, gamma * UtilMath.Deg2Rad, LAN * UtilMath.Deg2Rad);
                 p = solver;
             }
 
-            old_v0m = v0m;
-            old_r0m = r0m;
-            old_inc = inc;
+            old_PeA   = PeA;
+            old_ApA   = ApA;
+            old_inc   = inc;
+            old_gamma = gamma;
+            old_LAN   = LAN;
         }
+
 
         // guess at delta v based on specific orbital energy
         // https://en.wikipedia.org/wiki/Specific_orbital_energy
@@ -345,7 +343,7 @@ namespace MuMech
             return new PontryaginLaunch(core: core, mu: mainBody.gravParameter, r0: vesselState.orbitalPosition, v0: vesselState.orbitalVelocity, pr0: Vector3d.zero, dV: approximateDeltaV(sma));
         }
 
-        public void target3constraint(double PeA, double ApA, double inc, bool omitCoast, bool currentInc)
+        public void keplerian3constraint(double PeA, double ApA, double inc, bool omitCoast, bool currentInc)
         {
             if ( status == PVGStatus.ENABLED )
                 return;
@@ -368,10 +366,10 @@ namespace MuMech
                 if (p != null)
                     p.KillThread();
 
-                Debug.Log("[MechJeb] MechJebModuleGuidanceController: setting up target3constraint");
+                Debug.Log("[MechJeb] MechJebModuleGuidanceController: setting up keplerian3constraint");
                 PontryaginLaunch solver = NewPontryaginForLaunch(inc, sma);
                 solver.omitCoast = omitCoast;
-                solver.target3constraint(sma, ecc, inc * UtilMath.Deg2Rad);
+                solver.keplerian3constraint(sma, ecc, inc * UtilMath.Deg2Rad);
                 p = solver;
             }
 
@@ -380,7 +378,7 @@ namespace MuMech
             old_inc = inc;
         }
 
-        public void target4constraintArgPfree(double PeA, double ApA, double inc, double LAN, bool omitCoast, bool currentInc)
+        public void keplerian4constraintArgPfree(double PeA, double ApA, double inc, double LAN, bool omitCoast, bool currentInc)
         {
             if ( status == PVGStatus.ENABLED )
                 return;
@@ -403,10 +401,10 @@ namespace MuMech
                 if (p != null)
                     p.KillThread();
 
-                Debug.Log("[MechJeb] MechJebModuleGuidanceController: setting up target4constraintArgPfree");
+                Debug.Log("[MechJeb] MechJebModuleGuidanceController: setting up keplerian4constraintArgPfree");
                 PontryaginLaunch solver = NewPontryaginForLaunch(inc, sma);
                 solver.omitCoast = omitCoast;
-                solver.target4constraintArgPfree(sma, ecc, inc * UtilMath.Deg2Rad, LAN * UtilMath.Deg2Rad);
+                solver.keplerian4constraintArgPfree(sma, ecc, inc * UtilMath.Deg2Rad, LAN * UtilMath.Deg2Rad);
                 p = solver;
             }
 
@@ -416,7 +414,7 @@ namespace MuMech
             old_LAN = LAN;
         }
 
-        public void target4constraintLANfree(double PeA, double ApA, double inc, double ArgP, bool omitCoast, bool currentInc)
+        public void keplerian4constraintLANfree(double PeA, double ApA, double inc, double ArgP, bool omitCoast, bool currentInc)
         {
             if ( status == PVGStatus.ENABLED )
                 return;
@@ -439,10 +437,10 @@ namespace MuMech
                 if (p != null)
                     p.KillThread();
 
-                Debug.Log("[MechJeb] MechJebModuleGuidanceController: setting up target4constraintLANfree");
+                Debug.Log("[MechJeb] MechJebModuleGuidanceController: setting up keplerian4constraintLANfree");
                 PontryaginLaunch solver = NewPontryaginForLaunch(inc, sma);
                 solver.omitCoast = omitCoast;
-                solver.target4constraintLANfree(sma, ecc, inc * UtilMath.Deg2Rad, ArgP * UtilMath.Deg2Rad);
+                solver.keplerian4constraintLANfree(sma, ecc, inc * UtilMath.Deg2Rad, ArgP * UtilMath.Deg2Rad);
                 p = solver;
             }
 
@@ -452,7 +450,7 @@ namespace MuMech
             old_ArgP = ArgP;
         }
 
-        public void target5constraint(double PeA, double ApA, double inc, double LAN, double ArgP, bool omitCoast, bool currentInc)
+        public void keplerian5constraint(double PeA, double ApA, double inc, double LAN, double ArgP, bool omitCoast, bool currentInc)
         {
             if ( status == PVGStatus.ENABLED )
                 return;
@@ -475,10 +473,10 @@ namespace MuMech
                 if (p != null)
                     p.KillThread();
 
-                Debug.Log("[MechJeb] MechJebModuleGuidanceController: setting up target5constraint");
+                Debug.Log("[MechJeb] MechJebModuleGuidanceController: setting up keplerian5constraint");
                 PontryaginLaunch solver = NewPontryaginForLaunch(inc, sma);
                 solver.omitCoast = omitCoast;
-                solver.target5constraint(sma, ecc, inc * UtilMath.Deg2Rad, LAN * UtilMath.Deg2Rad, ArgP * UtilMath.Deg2Rad);
+                solver.keplerian5constraint(sma, ecc, inc * UtilMath.Deg2Rad, LAN * UtilMath.Deg2Rad, ArgP * UtilMath.Deg2Rad);
                 p = solver;
             }
 

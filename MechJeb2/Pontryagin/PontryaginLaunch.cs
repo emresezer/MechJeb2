@@ -21,15 +21,17 @@ namespace MuMech {
         double LANT;
         double ArgPT;
         Vector3d hT;
+        int numStages;
 
         // 5-constraint PEG with fixed LAN
-        public void flightangle5constraint(double rTm, double vTm, double gamma, Vector3d hT)
+        public void flightangle5constraint(double rTm, double vTm, double gamma, double inc, double LAN)
         {
             QuaternionD rot = Quaternion.Inverse(Planetarium.fetch.rotation);
             this.rTm = rTm / r_scale;
             this.vTm = vTm / v_scale;
             this.gammaT = gamma;
-            this.hT = rot * hT / r_scale / v_scale;
+            this.incT = inc;
+            this.LANT = LAN;
             bcfun = flightangle5constraint;
         }
 
@@ -40,6 +42,7 @@ namespace MuMech {
             Vector3d pvf = new Vector3d(yT[6], yT[7], yT[8]);
             Vector3d prf = new Vector3d(yT[9], yT[10], yT[11]);
             Vector3d hf = Vector3d.Cross(rf, vf);
+            Vector3d hT = new Vector3d( Math.Sin(LANT) * Math.Sin(incT), -Math.Cos(LANT) * Math.Sin(incT), Math.Cos(incT) ) * rTm * vTm * Math.Sin(gammaT);
 
             Vector3d hmiss = hf - hT;
 
@@ -106,17 +109,17 @@ namespace MuMech {
             }
         }
 
-        public void target3constraint(double sma, double ecc, double inc)
+        public void keplerian3constraint(double sma, double ecc, double inc)
         {
             this.smaT = sma / r_scale;
             this.eccT = ecc;
             this.incT = inc;
-            bcfun = target3constraint;
+            bcfun = keplerian3constraint;
         }
 
         // has a singularity for e == 0 which is only fixable by going to flightangle4constraint
         // FIXME: singularity for i == 0, rot coordinates?
-        private void target3constraint(double[] yT, double[] z, bool terminal)
+        private void keplerian3constraint(double[] yT, double[] z, bool terminal)
         {
             Vector3d rf = new Vector3d(yT[0], yT[1], yT[2]);
             Vector3d vf = new Vector3d(yT[3], yT[4], yT[5]);
@@ -148,16 +151,16 @@ namespace MuMech {
             }
         }
 
-        public void target4constraintArgPfree(double sma, double ecc, double inc, double LAN)
+        public void keplerian4constraintArgPfree(double sma, double ecc, double inc, double LAN)
         {
             this.smaT = sma / r_scale;
             this.eccT = ecc;
             this.incT = inc;
             this.LANT = LAN;
-            bcfun = target4constraintArgPfree;
+            bcfun = keplerian4constraintArgPfree;
         }
 
-        private void target4constraintArgPfree(double[] yT, double[] z, bool terminal)
+        private void keplerian4constraintArgPfree(double[] yT, double[] z, bool terminal)
         {
             Vector3d rf = new Vector3d(yT[0], yT[1], yT[2]);
             Vector3d vf = new Vector3d(yT[3], yT[4], yT[5]);
@@ -191,16 +194,16 @@ namespace MuMech {
             }
         }
 
-        public void target4constraintLANfree(double sma, double ecc, double inc, double ArgP)
+        public void keplerian4constraintLANfree(double sma, double ecc, double inc, double ArgP)
         {
             this.smaT = sma / r_scale;
             this.eccT = ecc;
             this.incT = inc;
             this.ArgPT = ArgP;
-            bcfun = target4constraintLANfree;
+            bcfun = keplerian4constraintLANfree;
         }
 
-        private void target4constraintLANfree(double[] yT, double[] z, bool terminal)
+        private void keplerian4constraintLANfree(double[] yT, double[] z, bool terminal)
         {
             Vector3d rf = new Vector3d(yT[0], yT[1], yT[2]);
             Vector3d vf = new Vector3d(yT[3], yT[4], yT[5]);
@@ -230,17 +233,17 @@ namespace MuMech {
             }
         }
 
-        public void target5constraint(double sma, double ecc, double inc, double LAN, double ArgP)
+        public void keplerian5constraint(double sma, double ecc, double inc, double LAN, double ArgP)
         {
             this.smaT = sma / r_scale;
             this.eccT = ecc;
             this.incT = inc;
             this.LANT = LAN;
             this.ArgPT = ArgP;
-            bcfun = target5constraint;
+            bcfun = keplerian5constraint;
         }
 
-        private void target5constraint(double[] yT, double[] z, bool terminal)
+        private void keplerian5constraint(double[] yT, double[] z, bool terminal)
         {
             Vector3d rf = new Vector3d(yT[0], yT[1], yT[2]);
             Vector3d vf = new Vector3d(yT[3], yT[4], yT[5]);
@@ -282,6 +285,83 @@ namespace MuMech {
             {
                 z[0] = hmiss.magnitude;
                 z[1] = z[2] = z[3] = z[4] = z[5] = 0.0;
+            }
+        }
+
+        public void flightangle3constraintMAXE(double rT, double gammaT, double incT, int numStages)
+        {
+            this.rTm = rTm / r_scale;
+            this.gammaT = gammaT;
+            this.numStages = numStages;
+            this.incT = incT;
+            bcfun = flightangle3constraintMAXE;
+        }
+
+        // fixed-time maximal energy from https://doi.org/10.2514/2.5045
+        private void flightangle3constraintMAXE(double[] yT, double[] z, bool terminal)
+        {
+            Vector3d rf = new Vector3d(yT[0], yT[1], yT[2]);
+            Vector3d vf = new Vector3d(yT[3], yT[4], yT[5]);
+            Vector3d pvf = new Vector3d(yT[6], yT[7], yT[8]);
+            Vector3d prf = new Vector3d(yT[9], yT[10], yT[11]);
+
+            Vector3d n = new Vector3d(0, -1, 0);  /* angular momentum vectors point south in KSP and we're in xzy coords */
+            Vector3d hf = Vector3d.Cross(rf, vf);
+
+            if (!terminal)
+            {
+                z[0] = ( rf.sqrMagnitude - rTm * rTm ) / 2.0;
+                z[1] = Vector3d.Dot(n, hf) - hf.magnitude * Math.Cos(incT);
+                z[2] = Vector3d.Dot(rf, vf) - rf.magnitude * vf.magnitude * Math.Sin(gammaT);
+
+                z[3] = Vector3d.Dot(vf, prf) * rf.sqrMagnitude - Vector3d.Dot(rf, pvf) * vf.sqrMagnitude + Vector3d.Dot(rf, vf) * (vf.sqrMagnitude - Vector3d.Dot(rf, prf));
+                z[4] = Vector3d.Dot(vf, pvf) - vf.sqrMagnitude;
+                z[5] = Vector3d.Dot(hf, prf) * Vector3d.Dot(hf, Vector3d.Cross(rf, n)) + Vector3d.Dot(hf, pvf) * Vector3d.Dot(hf, Vector3d.Cross(vf, n));
+            }
+            else
+            {
+                z[0] = z[1] = z[2] = z[3] = z[4] = z[5] = 0.0;
+            }
+        }
+
+        public void flightangle4constraintMAXE(double rT, double gammaT, double incT, double LANT, int numStages)
+        {
+            this.rTm = rTm / r_scale;
+            this.gammaT = gammaT;
+            this.incT = incT;
+            this.LANT = LANT;
+            this.numStages = numStages;
+            bcfun = flightangle4constraintMAXE;
+        }
+
+        // fixed-time maximal energy from https://doi.org/10.2514/2.5045
+        // XXX: this may only work for gammaT of zero?
+        private void flightangle4constraintMAXE(double[] yT, double[] z, bool terminal)
+        {
+            Vector3d rf = new Vector3d(yT[0], yT[1], yT[2]);
+            Vector3d vf = new Vector3d(yT[3], yT[4], yT[5]);
+            Vector3d pvf = new Vector3d(yT[6], yT[7], yT[8]);
+            Vector3d prf = new Vector3d(yT[9], yT[10], yT[11]);
+
+            Vector3d n = new Vector3d(0, -1, 0);  /* angular momentum vectors point south in KSP and we're in xzy coords */
+            Vector3d hf = Vector3d.Cross(rf, vf);
+
+            // angular momentum direction unit vector
+            Vector3d i_hT = new Vector3d( Math.Sin(LANT) * Math.Sin(incT), -Math.Cos(LANT) * Math.Sin(incT), Math.Cos(incT) );
+
+            if (!terminal)
+            {
+                z[0] = ( rf.sqrMagnitude - rTm * rTm ) / 2.0;
+                z[1] = Vector3d.Dot(n, hf) - hf.magnitude * Math.Cos(incT);
+                z[2] = Vector3d.Dot(rf, i_hT);
+                z[3] = Vector3d.Dot(vf, i_hT);
+
+                z[4] = Vector3d.Dot(vf, prf) * rf.sqrMagnitude - Vector3d.Dot(rf, pvf) * vf.sqrMagnitude;
+                z[5] = Vector3d.Dot(vf, pvf) - vf.sqrMagnitude;
+            }
+            else
+            {
+                z[0] = z[1] = z[2] = z[3] = z[4] = z[5] = 0.0;
             }
         }
 

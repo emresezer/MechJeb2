@@ -100,13 +100,13 @@ namespace MuMech
                 if ( autopilot.desiredArgPMode == 2 ) // free
                 {
                     // 3 constraint -- LAN, ArgP, TA free
-                    core.guidance.target3constraint(periapsis, apoapsis, inclination, omitCoast, autopilot.desiredIncMode == 2);
+                    core.guidance.keplerian3constraint(periapsis, apoapsis, inclination, omitCoast, autopilot.desiredIncMode == 2);
                     // FIXME: push LAN + ArgP into autopilot
                 }
                 else
                 {
                     // 4 constraint -- LAN, TA free
-                    core.guidance.target4constraintLANfree(periapsis, apoapsis, inclination, ArgP, omitCoast, autopilot.desiredIncMode == 2);
+                    core.guidance.keplerian4constraintLANfree(periapsis, apoapsis, inclination, ArgP, omitCoast, autopilot.desiredIncMode == 2);
                     // FIXME: push LAN into autopilot
                 }
             }
@@ -115,13 +115,13 @@ namespace MuMech
                 if ( autopilot.desiredArgPMode == 2 ) // free
                 {
                     // 4 constraint -- ArgP, TA free
-                    core.guidance.target4constraintArgPfree(periapsis, apoapsis, inclination, LAN, omitCoast, autopilot.desiredIncMode == 2);
+                    core.guidance.keplerian4constraintArgPfree(periapsis, apoapsis, inclination, LAN, omitCoast, autopilot.desiredIncMode == 2);
                     // FIXME: push ArgP into autopilot
                 }
                 else
                 {
                     // 5 constraint -- TA free
-                    core.guidance.target5constraint(periapsis, apoapsis, inclination, LAN, ArgP, omitCoast, autopilot.desiredIncMode == 2);
+                    core.guidance.keplerian5constraint(periapsis, apoapsis, inclination, LAN, ArgP, omitCoast, autopilot.desiredIncMode == 2);
                 }
             }
         }
